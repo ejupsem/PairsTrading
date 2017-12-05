@@ -1,0 +1,100 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Nov  3 11:40:03 2017
+@author: ejupsem
+"""
+
+import pandas as pd
+import numpy as np
+from scipy.stats.stats import pearsonr
+
+#calculates log return on 'price' of passed in df, returns series of just retruns and removes first NA
+def daily_log_returns(df):
+    df['log_ret'] = np.log(df.price) - np.log(df.price.shift(1))
+    df = df.iloc[1:,df.columns.get_loc('log_ret')]
+    return df
+
+def main():
+    #read csv files
+    FANG = pd.read_csv('EquityData.csv')
+    Index = pd.read_csv('FuturesData.csv')
+    
+    #calculate starting number of shares for each component
+    AAPL_shares = 100/FANG.iloc[0,FANG.columns.get_loc('AAPL')]
+    AMZN_shares = 100/FANG.iloc[0,FANG.columns.get_loc('AMZN')]
+    NVDA_shares = 100/FANG.iloc[0,FANG.columns.get_loc('NVDA')]
+    BIDU_shares = 100/FANG.iloc[0,FANG.columns.get_loc('BIDU')]
+    FB_shares = 100/FANG.iloc[0,FANG.columns.get_loc('FB')]
+    BABA_shares = 100/FANG.iloc[0,FANG.columns.get_loc('BABA')]
+    GOOGL_shares = 100/FANG.iloc[0,FANG.columns.get_loc('GOOGL')]
+    TWTR_shares = 100/FANG.iloc[0,FANG.columns.get_loc('TWTR')]
+    TSLA_shares = 100/FANG.iloc[0,FANG.columns.get_loc('TSLA')]
+    NFLX_shares = 100/FANG.iloc[0,FANG.columns.get_loc('NFLX')]
+    
+    #column to hold FANG+ daily price
+    FANG['price'] = 0
+    
+    #use shares and price to caculate FANG+ price
+    count = 0
+    while count < len(FANG):
+        FANG.iloc[count,FANG.columns.get_loc('price')] = AAPL_shares * FANG.iloc[count,FANG.columns.get_loc('AAPL')]    \
+                                                         +AMZN_shares * FANG.iloc[count,FANG.columns.get_loc('AMZN')]   \
+                                                         +NVDA_shares * FANG.iloc[count,FANG.columns.get_loc('NVDA')]   \
+                                                         +BIDU_shares * FANG.iloc[count,FANG.columns.get_loc('BIDU')]   \
+                                                         +FB_shares * FANG.iloc[count,FANG.columns.get_loc('FB')]       \
+                                                         +BABA_shares * FANG.iloc[count,FANG.columns.get_loc('BABA')]   \
+                                                         +GOOGL_shares * FANG.iloc[count,FANG.columns.get_loc('GOOGL')] \
+                                                         +TWTR_shares * FANG.iloc[count,FANG.columns.get_loc('TWTR')]   \
+                                                         +TSLA_shares * FANG.iloc[count,FANG.columns.get_loc('TSLA')]   \
+                                                         +NFLX_shares * FANG.iloc[count,FANG.columns.get_loc('NFLX')]
+        count = count + 1
+    
+    #final price of FANG index used to calculate index contracts to trade
+    FANG_last = FANG.iloc[-1,FANG.columns.get_loc('price')]
+    
+    #create df for each index
+    ES = Index[['ES']]
+    ES.columns = ['price']
+    NQ = Index[['NQ']]
+    NQ.columns = ['price']
+    IXT = Index[['IXT']]
+    IXT.columns = ['price']
+    RTA = Index[['RTA']]
+    RTA.columns = ['price']
+    
+    #function to calculate daily log returns
+    ES = daily_log_returns(ES)
+    NQ = daily_log_returns(NQ)
+    IXT = daily_log_returns(IXT)
+    RTA = daily_log_returns(RTA)
+    FANG = daily_log_returns(FANG)
+    
+    #calculate each correlation of index to FANG and find highest correlation
+    corr_ES = pearsonr(ES,FANG)
+    corr_NQ = pearsonr(NQ,FANG)
+    corr_IXT = pearsonr(IXT,FANG)
+    corr_RTA = pearsonr(RTA,FANG)
+    corr_pair = max(corr_ES,corr_NQ,corr_IXT,corr_RTA)
+    
+    #if statement to find best index name and index contracts to trade
+    best_index = ''
+    index_shares = -999
+    if corr_pair == corr_ES:
+        best_index = 'ES'
+        index_shares = FANG_last/Index.iloc[-1,Index.columns.get_loc('ES')]
+    elif corr_pair == corr_NQ:
+        best_index = 'NQ'
+        index_shares = FANG_last/Index.iloc[-1,Index.columns.get_loc('NQ')]
+    elif corr_pair == corr_IXT:
+        best_index = 'IXT'
+        index_shares = FANG_last/Index.iloc[-1,Index.columns.get_loc('IXT')]
+    elif corr_pair == corr_RTA:
+        best_index = 'RTA'
+        index_shares = FANG_last/Index.iloc[-1,Index.columns.get_loc('RTA')]
+    
+    #print trading directions
+    print "%s is the most correlated index with FANG+ with a correlation and p-value of %s. %f is the appropriate number of %s contracts you should sell for each FANG+ index futures contract you buy on 10/6/2017." % (best_index, corr_pair, index_shares, best_index)
+     
+if __name__== "__main__":
+    main()
